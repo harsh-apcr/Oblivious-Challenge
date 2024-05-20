@@ -8,10 +8,10 @@ potential security risks involving unsafe system operations and mitigate them.
 
 pandas==2.2.2
 ├── numpy [1.22.4]
-├── python-dateutil [required: >=2.8.2, installed: 2.9.0.post0]
-│   └── six [required: >=1.5, installed: 1.16.0]
-├── pytz [required: >=2020.1, installed: 2024.1]
-└── tzdata [required: >=2022.7, installed: 2024.1]
+├── python-dateutil [2.9.0.post0]
+│   └── six [1.16.0]
+├── pytz [2024.1]
+└── tzdata [2024.1]
 
 
 In Pandas, operations that could potentially lead to unauthorized system access are typically related to:
@@ -19,6 +19,17 @@ In Pandas, operations that could potentially lead to unauthorized system access 
 1. __File I/O Operations__: These involve reading from or writing to files on the filesystem. If these functions are used improperly, they can expose or alter sensitive files.
 2. __External Command Execution__: While Pandas itself does not generally execute system commands, it might call libraries or extensions that do.
 3. __Network Operations__: Pandas does not directly support many network operations, but it can interact with URLs or network data sources through its data I/O functions.
+
+# Steps to install the modified library
+
+1. Create a new python environment with version 3.9.19
+
+2. Run `pip install -r requirements.txt`
+
+3. cd into the numpy directory and run `pip install .`
+
+4. cd into the pandas directory and run `pip install .`
+
 
 # Code Analysis 
 
@@ -102,6 +113,46 @@ Location: ./numpy/distutils/cpuinfo.py:29:25
 29	        status, output = getstatusoutput(cmd)
 30	    except OSError as e:
 ```
+
+The warning you're encountering is due to the use of getstatusoutput from the subprocess module, which starts a process with a shell. This can lead to security vulnerabilities, such as shell injection attacks, if the command includes unsanitized input.
+
+To mitigate this risk, you should avoid using getstatusoutput and instead use the subprocess.run function with a list of arguments. This approach avoids invoking the shell and reduces the risk of shell injection.
+
+2.
+
+Issue: [B602:subprocess_popen_with_shell_equals_true] subprocess call with shell=True identified, security issue.
+   Severity: High   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.7.8/plugins/b602_subprocess_popen_with_shell_equals_true.html
+   Location: ./numpy/distutils/exec_command.py:283:15
+
+```python
+282	        # it encounters an invalid character; rather, we simply replace it
+283	        proc = subprocess.Popen(command, shell=use_shell, env=env, text=False,
+284	                                stdout=subprocess.PIPE,
+285	                                stderr=subprocess.STDOUT)
+286	    except OSError:
+```
+
+The issue with using shell=True in subprocess.Popen is that it can introduce security vulnerabilities, particularly command injection attacks, if the input is not properly sanitized. To mitigate this risk, you should avoid using shell=True and instead provide the command as a list of arguments.
+
+3. 
+
+Issue: [B310:blacklist] Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.
+   Severity: Medium   Confidence: High
+   CWE: CWE-22 (https://cwe.mitre.org/data/definitions/22.html)
+   More Info: https://bandit.readthedocs.io/en/1.7.8/blacklists/blacklist_calls.html#b310-urllib-urlopen
+
+Location: ./numpy/lib/_datasource.py:336:17
+
+```python
+302	        def _isurl(self, path):
+301          """Test if path is a net location.  Tests the scheme and netloc."""
+```
+
+The issue here is that using urlopen without validating the URL can allow the use of potentially dangerous schemes like file: or custom schemes, which can introduce security vulnerabilities. To mitigate this risk, you should restrict the URL schemes to only those that are necessary and safe (e.g., http and https).
+
+
 
 
 
